@@ -71,13 +71,13 @@ jobs:
         if: steps.juntar.outputs.ok == 'sim'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run fork-publicar-app.yml --ref main
+        run: gh workflow run fork-publicar-app.yml --repo "$GITHUB_REPOSITORY" --ref main
 
       - name: Avisar do conflito
         if: steps.juntar.outputs.ok == 'conflito'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh issue create \
+          gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "Conflito ao trazer ${{ steps.nova.outputs.tag }} do Deskcomm oficial" \
             --body "A versão ${{ steps.nova.outputs.tag }} do Deskcomm oficial mexe no mesmo trecho do patch das mídias (crm_get_conversation_history, lib/mcp/tools/conversations.ts). Nada foi alterado neste fork. É preciso juntar à mão uma vez: git fetch upstream; git merge ${{ steps.nova.outputs.tag }}; resolver; commit; push."
