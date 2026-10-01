@@ -1,0 +1,71 @@
+name: Fork - publicar o app com o patch (GHCR)
+
+# Só deste fork. Monta UMA imagem (o app, para VPS amd64) e publica em
+# ghcr.io/<dono do fork>/deskcommcrm com as tags:
+#   fork-latest   = a versão mais recente deste fork (a VPS usa esta)
+#   fork-<sha>    = a mesma, presa ao commit (para voltar atrás se precisar)
+#
+# Por que não usar o publish-image.yml oficial? Ele monta 8 imagens (4 serviços x 2 arquiteturas) a
+# cada commit. Aqui só o app muda (patch das mídias na conversa); worker e scheduler seguem os oficiais.
+# O publish-image.yml fica DESLIGADO neste fork (gh workflow disable).
+#
+# Dispara quando o fork-sincronizar.yml traz uma versão nova do Deskcomm oficial, quando o main do fork
+# recebe um commit, ou à mão (Actions > Run workflow).
+
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  workflow_dispatch: {}
+
+env:
+  REGISTRY: ghcr.io
+
+concurrency:
+  group: fork-publicar-app
+  cancel-in-progress: true
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Entrar no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Nomes (dono em minúsculas) e versão
+        id: nomes
+        run: |
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "imagem=${REGISTRY}/${owner}/deskcommcrm" >> "$GITHUB_OUTPUT"
+          echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Montar e publicar (imagem genérica, sem segredos)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.nomes.outputs.imagem }}:fork-latest
+            ${{ steps.nomes.outputs.imagem }}:fork-${{ steps.nomes.outputs.sha }}
+          labels: |
+            org.opencontainers.image.title=DeskcommCRM (fork com patch das mídias)
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            APP_VERSION=fork-${{ steps.nomes.outputs.sha }}
+          cache-from: type=gha,scope=fork-app
+          cache-to: type=gha,mode=max,scope=fork-app

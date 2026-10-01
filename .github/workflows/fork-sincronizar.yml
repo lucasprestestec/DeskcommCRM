@@ -1,0 +1,77 @@
+name: Fork - trazer a versão nova do Deskcomm oficial
+
+# Toda segunda-feira (e à mão), olha a versão mais nova (tag v*) do Deskcomm oficial.
+# - Se este fork já a contém: não faz nada.
+# - Se não contém e a união é limpa: junta, publica no main do fork e chama o fork-publicar-app.yml.
+# - Se dá conflito (o criador mexeu no mesmo lugar do patch): NÃO força nada, abre uma issue avisando.
+#
+# Atenção ao atualizar a VPS: o app vem deste fork, mas o worker e o scheduler são os oficiais.
+# Mantenha os três na mesma versão (veja o README do patch em docs/deskcomm do projeto Central Dors).
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+env:
+  UPSTREAM: https://github.com/melgarafael/DeskcommCRM.git
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Achar a versão mais nova do oficial
+        id: nova
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git fetch upstream --quiet 'refs/tags/v*:refs/tags/upstream-v*'
+          tag="$(git tag -l 'upstream-v*' | sed 's/^upstream-//' | sort -V | tail -1)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -z "$tag" ]; then echo "nenhuma tag v* no oficial"; exit 0; fi
+          if git merge-base --is-ancestor "refs/tags/upstream-$tag" HEAD; then
+            echo "pronta=sim" >> "$GITHUB_OUTPUT"
+            echo "Este fork já contém $tag."
+          else
+            echo "pronta=nao" >> "$GITHUB_OUTPUT"
+            echo "Falta trazer $tag."
+          fi
+
+      - name: Juntar (sem forçar)
+        id: juntar
+        if: steps.nova.outputs.tag != '' && steps.nova.outputs.pronta == 'nao'
+        run: |
+          git config user.name "fork-sincronizar"
+          git config user.email "actions@users.noreply.github.com"
+          if git merge --no-edit "refs/tags/upstream-${{ steps.nova.outputs.tag }}" -m "Traz ${{ steps.nova.outputs.tag }} do Deskcomm oficial"; then
+            git push origin HEAD:main
+            echo "ok=sim" >> "$GITHUB_OUTPUT"
+          else
+            git merge --abort || true
+            echo "ok=conflito" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Push feito com o token do Actions não dispara outros workflows; por isso chamamos à mão.
+      - name: Montar a imagem nova
+        if: steps.juntar.outputs.ok == 'sim'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run fork-publicar-app.yml --ref main
+
+      - name: Avisar do conflito
+        if: steps.juntar.outputs.ok == 'conflito'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "Conflito ao trazer ${{ steps.nova.outputs.tag }} do Deskcomm oficial" \
+            --body "A versão ${{ steps.nova.outputs.tag }} do Deskcomm oficial mexe no mesmo trecho do patch das mídias (crm_get_conversation_history, lib/mcp/tools/conversations.ts). Nada foi alterado neste fork. É preciso juntar à mão uma vez: git fetch upstream; git merge ${{ steps.nova.outputs.tag }}; resolver; commit; push."
