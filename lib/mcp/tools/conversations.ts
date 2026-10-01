@@ -19,6 +19,7 @@ import {
   TEXTO_MAXIMO,
 } from "@/lib/inbox/rascunho-sugerido";
 import { getQueuePositions } from "@/lib/routing/queue";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveUserNames } from "./_users";
 import type { McpToolDefinition } from "../types";
 
@@ -182,6 +183,59 @@ const historyInputShape = {
   cursor: z.string().optional(),
 };
 
+/** Validade do link temporário da mídia (mesma da rota /api/v1/messages/[id]/media). */
+export const MEDIA_SIGNED_URL_TTL_S = 3600;
+const MEDIA_BUCKET = "whatsapp-media";
+
+export type MediaDoHistorico = {
+  /**
+   * `ready`: arquivo guardado e com link; `pending`: a mensagem tem mídia mas o
+   * worker ainda não a guardou (ou o link falhou) — quem consome tenta de novo
+   * depois; ausente no mapa = mensagem sem mídia.
+   */
+  status: "ready" | "pending";
+  signedUrl: string | null;
+};
+
+/**
+ * Para cada mensagem do histórico que carrega mídia, gera o link temporário do
+ * arquivo guardado. Nunca lança: falha ao assinar vira `pending` (a conversa
+ * continua legível). Só toca no storage se houver mídia a assinar.
+ */
+export async function resolverMidiasDoHistorico(
+  messages: ReadonlyArray<{
+    id: string;
+    media_url?: string | null;
+    media_storage_path?: string | null;
+  }>,
+): Promise<Map<string, MediaDoHistorico>> {
+  const out = new Map<string, MediaDoHistorico>();
+  const comMidia = messages.filter((m) => m.media_storage_path || m.media_url);
+  if (comMidia.length === 0) return out;
+
+  const storage = createAdminClient().storage.from(MEDIA_BUCKET);
+  await Promise.all(
+    comMidia.map(async (m) => {
+      if (!m.media_storage_path) {
+        out.set(m.id, { status: "pending", signedUrl: null });
+        return;
+      }
+      try {
+        const { data, error } = await storage.createSignedUrl(m.media_storage_path, MEDIA_SIGNED_URL_TTL_S);
+        out.set(
+          m.id,
+          error || !data?.signedUrl
+            ? { status: "pending", signedUrl: null }
+            : { status: "ready", signedUrl: data.signedUrl },
+        );
+      } catch {
+        out.set(m.id, { status: "pending", signedUrl: null });
+      }
+    }),
+  );
+  return out;
+}
+
 export const crmGetConversationHistory: McpToolDefinition<typeof historyInputShape> = {
   name: "crm_get_conversation_history",
   description:
@@ -201,6 +255,7 @@ export const crmGetConversationHistory: McpToolDefinition<typeof historyInputSha
       input.conversation_id,
       { limit: input.limit, cursor: input.cursor },
     );
+    const media = await resolverMidiasDoHistorico(result.messages);
     return {
       messages: result.messages.map((m) => ({
         id: m.id,
@@ -208,6 +263,13 @@ export const crmGetConversationHistory: McpToolDefinition<typeof historyInputSha
         type: m.type,
         body: m.body,
         media_url: m.media_url,
+        // Mídia utilizável por quem consome pela API: tipo, tamanho e um link
+        // temporário do arquivo já guardado (`media_url` é o endereço interno do
+        // gateway e não serve fora dele). Ver `resolverMidiasDoHistorico`.
+        media_mime: m.media_mime ?? null,
+        media_size_bytes: m.media_size_bytes ?? null,
+        media_status: media.get(m.id)?.status ?? "none",
+        media_signed_url: media.get(m.id)?.signedUrl ?? null,
         sent_via: m.sent_via,
         sent_at: m.sent_at,
         status: m.status,
