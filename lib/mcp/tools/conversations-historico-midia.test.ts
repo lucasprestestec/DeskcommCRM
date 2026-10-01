@@ -78,6 +78,6 @@ describe("crm_get_conversation_history", () => {
     };
     expect(out.messages[0]).toMatchObject({ id: "m1", type: "audio", media_mime: "audio/ogg", media_size_bytes: 1234, media_status: "ready", media_signed_url: "https://s/y" });
     expect(out.messages[1]).toMatchObject({ id: "m2", body: "oi", media_status: "none", media_signed_url: null, media_mime: null });
-    expect(Object.keys(out.messages[1])).toEqual(expect.arrayContaining(["id", "direction", "type", "body", "media_url", "sent_via", "sent_at", "status"]));
+    expect(Object.keys(out.messages[1] ?? {})).toEqual(expect.arrayContaining(["id", "direction", "type", "body", "media_url", "sent_via", "sent_at", "status"]));
   });
 });
