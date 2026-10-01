@@ -52,7 +52,13 @@ jobs:
         run: |
           git config user.name "fork-sincronizar"
           git config user.email "actions@users.noreply.github.com"
+          antes="$(git rev-parse HEAD)"
           if git merge --no-edit "refs/tags/upstream-${{ steps.nova.outputs.tag }}" -m "Traz ${{ steps.nova.outputs.tag }} do Deskcomm oficial"; then
+            # O token do Actions não pode alterar .github/workflows. Mantemos as automações do fork como estavam
+            # (só trazemos o código) e refazemos o commit da união sem mexer nelas.
+            git rm -r -q -f --ignore-unmatch .github/workflows
+            git checkout "$antes" -- .github/workflows
+            git commit --amend --no-edit -q
             git push origin HEAD:main
             echo "ok=sim" >> "$GITHUB_OUTPUT"
           else
