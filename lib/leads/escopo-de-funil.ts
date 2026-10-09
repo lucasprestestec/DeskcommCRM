@@ -135,6 +135,8 @@ export const ALVO_DE_FUNIL: Record<string, AlvoDeFunil> = {
   // tests/unit/capacidade-alcancavel-pelo-agente.test.ts), então o escopo de
   // funil nunca chega a ser perguntado para ela.
   crm_start_conversation_and_send: "sem_funil",
+  // Publica no Status do número, sem lead nem funil; mesma barreira (manager + apenasHumano).
+  crm_publish_whatsapp_status: "sem_funil",
   crm_add_case_note: "sem_funil",
   crm_close_human_case: "sem_funil",
   crm_assign_conversation: "sem_funil",

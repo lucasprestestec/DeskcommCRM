@@ -131,6 +131,20 @@ export const TOOLS_ATENDIMENTO = declararTools([
     apenasHumano: true,
   },
   {
+    name: "crm_publish_whatsapp_status",
+    category: "write",
+    rotulo: "Publicar imagem no Status do WhatsApp",
+    explicacao:
+      "Posta uma imagem (promoção, aviso) no Status do WhatsApp do número escolhido, para os contatos que você indicar — " +
+      "de verdade, aparece no celular deles. Quem pede é um sistema externo, depois de o dono aprovar a peça.",
+    oQueToca: "Status do WhatsApp",
+    risco: "critico",
+    // Mesma lógica de crm_start_conversation_and_send: operada por automação externa
+    // com chave, nunca pelo agente conversacional em turno.
+    pacotes: ["vender"],
+    apenasHumano: true,
+  },
+  {
     name: "crm_create_conversation_draft",
     category: "write",
     rotulo: "Deixar texto sugerido para a pessoa revisar",
