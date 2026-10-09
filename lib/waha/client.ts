@@ -770,6 +770,29 @@ export class WahaClient {
     }
     return res.json();
   }
+
+  /**
+   * Status do WhatsApp (imagem): `POST /api/{session}/status/image`. `contacts` vazio =
+   * todos os contatos; no NOWEB a lista só funciona com o Store ativo na sessão.
+   */
+  async sendStatusImage(
+    session: string,
+    img: { mimetype: string; data: string; caption?: string; contacts?: string[] },
+  ): Promise<unknown> {
+    const res = await this.fetchComTeto(`${this.baseUrl}/api/${encodeURIComponent(session)}/status/image`, {
+      method: "POST",
+      headers: { "X-Api-Key": this.apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        file: { mimetype: img.mimetype, filename: "status", data: img.data },
+        ...(img.caption ? { caption: img.caption } : {}),
+        ...(img.contacts?.length ? { contacts: img.contacts } : {}),
+      }),
+    }, TETO_DE_MIDIA_MS);
+    if (!res.ok) {
+      throw new Error(`waha_status_${res.status}`);
+    }
+    return res.json();
+  }
 }
 
 /**

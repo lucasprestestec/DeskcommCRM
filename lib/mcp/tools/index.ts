@@ -29,6 +29,7 @@ import {
 import { crmGetPipelineForecast, crmListPipelines } from "./pipelines";
 import { crmSendWhatsappMessage } from "./messages";
 import { crmStartConversationAndSend } from "./start-conversation";
+import { crmPublishWhatsappStatus } from "./status";
 import {
   crmAssignConversation,
   crmManageTags,
@@ -157,6 +158,7 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmRetomarLead,
   crmSendWhatsappMessage,
   crmStartConversationAndSend,
+  crmPublishWhatsappStatus,
   crmCreateConversationDraft,
   crmAssignConversation,
   crmManageTags,
