@@ -253,7 +253,9 @@ export class WahaClient {
     const res = await this.fetchComTeto(`${this.baseUrl}/api/sessions`, {
       method: "POST",
       headers: { "X-Api-Key": this.apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ name, start: false, config: { ignore: CONVERSAS_IGNORADAS } }),
+      // Store do NOWEB ligado na CRIAÇÃO: sem ele o WAHA recusa Status (400) e a tradução de @lid não funciona.
+      // fullSync:false = ~3 meses de histórico. Mudar depois do QR pode perder o histórico de chats do número.
+      body: JSON.stringify({ name, start: false, config: { ignore: CONVERSAS_IGNORADAS, noweb: { store: { enabled: true, fullSync: false } } } }),
     });
     if (!res.ok && !knownSessionConflict(await res.json().catch(() => null), res.status, "create", name)) {
       throw new WahaSessionError("create", res.status);
