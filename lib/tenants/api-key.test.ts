@@ -113,6 +113,12 @@ describe("a chave abre o que promete", () => {
 });
 
 describe("a chave anterior deixa de valer, ou a auditoria não diz que deixou", () => {
+  it("com role manager (a instalação ligou) a chave sai com role:manager, e só esse papel muda", async () => {
+    await rotateIntegrationApiKey({ organizationId: "org-1", createdBy: "user-1", integrationScope: "integration:chico", name: "chico", role: "manager" });
+    const scopes = (inseridas().at(-1)?.args[0] as { scopes: string[] }).scopes;
+    expect(scopes).toEqual(["mcp:read", "mcp:write", "role:manager", "integration:chico"]);
+  });
+
   it("a busca da anterior usa JSON em `scopes` (jsonb), não literal de array", async () => {
     await rotateIntegrationApiKey(ENTRADA);
     const busca = h.chamadas.find((c) => c.metodo === "contains");

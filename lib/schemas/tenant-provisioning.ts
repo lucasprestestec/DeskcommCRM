@@ -19,6 +19,8 @@ export const provisionTenantSchema = z
     organization_name: z.string().trim().min(1).max(200),
     owner_email: z.string().trim().email(),
     owner_name: z.string().trim().min(1).max(200),
+    /** Papel da chave devolvida. Padrão `agent`; `manager` só com `TENANT_PROVISIONING_ALLOW_MANAGER` ligado na instalação. */
+    key_role: z.enum(["agent", "manager"]).optional(),
   })
   .strict();
 

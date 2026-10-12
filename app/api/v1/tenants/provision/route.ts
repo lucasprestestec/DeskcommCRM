@@ -45,6 +45,11 @@ const TAMANHO_MINIMO_DO_SEGREDO = 32;
 /** FALHAS por IP por minuto — acima disto é varredura de segredo, não integração. */
 const FALHAS_POR_MINUTO = 10;
 
+/** Papel de gerente para a chave: só se a instalação ligou de propósito. */
+function gerentePermitido(): boolean {
+  return env.TENANT_PROVISIONING_ALLOW_MANAGER.trim().toLowerCase() === "true";
+}
+
 function segredoDaInstalacao(): string | null {
   const segredo = env.TENANT_PROVISIONING_SECRET.trim();
   return segredo.length >= TAMANHO_MINIMO_DO_SEGREDO ? segredo : null;
@@ -122,6 +127,10 @@ export async function POST(req: NextRequest): Promise<Response> {
     throw err;
   }
 
+  if (input.key_role === "manager" && !gerentePermitido()) {
+    return fail("manager_key_not_enabled", "Esta instalação não permite chave de gerente por provisionamento.", 403, { requestId, headers: cabecalhosDoLimite });
+  }
+
   try {
     const { organizationId, ownerId, replay } = await provisionExternalTenant({
       integration: input.integration,
@@ -137,6 +146,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       createdBy: ownerId,
       integrationScope: `integration:${input.integration}`,
       name: `${input.integration} (integração)`,
+      ...(input.key_role ? { role: input.key_role } : {}),
       requestId,
     });
 

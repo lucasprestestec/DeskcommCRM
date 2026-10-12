@@ -1744,6 +1744,7 @@ esac
   printf '# rota responde 404. Para ligar: openssl rand -hex 32, cole aqui e entregue\n'
   printf '# só ao sistema que vai criar empresas (depois: docker compose up -d app).\n'
   envq TENANT_PROVISIONING_SECRET "${TENANT_PROVISIONING_SECRET:-}"
+  envq TENANT_PROVISIONING_ALLOW_MANAGER "${TENANT_PROVISIONING_ALLOW_MANAGER:-}"
   printf '# Telemetria de erros (você escolheu isto durante a instalação).\n'
   printf '#   "off"  = não envia nada.\n'
   printf '#   vazio  = só ERRO pro Sentry da comunidade, com CPF/telefone/e-mail\n'
