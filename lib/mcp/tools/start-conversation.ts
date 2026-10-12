@@ -29,9 +29,11 @@
  * `idempotency_keys`, TTL 24h) — a chave cobre o PAR abrir-conversa+enviar,
  * não só o envio, porque um retry não pode abrir uma segunda conversa.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 
+import { extFromMime } from "@/lib/messaging/media/types";
+import { validateOutboundMedia } from "@/lib/messaging/media/upload-validation";
 import { sendMessageHandler } from "@/app/api/v1/messages/_handler";
 import { openSharedContactConversation } from "@/lib/messaging/open-shared-contact-conversation";
 import { sendMessageSchema } from "@/lib/schemas/messaging";
@@ -57,6 +59,12 @@ const inputShape = {
   name: z.string().trim().min(1).max(200).optional().describe("Nome do contato, usado só se um novo cadastro for criado."),
   body: z.string().min(1).max(4096).optional(),
   media_url: z.string().url().optional(),
+  media_base64: z
+    .string()
+    .min(100)
+    .max(8_000_000)
+    .optional()
+    .describe("Arquivo embutido (base64, até ~6 MB), alternativa a `media_url`. O CRM guarda no armazenamento da própria conversa e o canal baixa de lá: não depende de endereço público de quem chama. Exige `media_mime`."),
   media_mime: z.string().optional(),
   type: z
     .enum(["text", "image", "audio", "document", "sticker", "video", "location", "contact"])
@@ -98,6 +106,7 @@ export const crmStartConversationAndSend: McpToolDefinition<typeof inputShape> =
       phone_number: input.phone_number,
       body: input.body,
       media_url: input.media_url,
+      media_base64: input.media_base64 ? createHash("sha256").update(input.media_base64).digest("hex") : undefined,
       type: input.type,
     });
 
@@ -136,11 +145,28 @@ export const crmStartConversationAndSend: McpToolDefinition<typeof inputShape> =
       name: input.name,
     });
 
+    // Arquivo embutido: guarda no molde da tela do CRM ({org}/{conversa}/out-{uuid}.{ext}) e envia por media_storage_path,
+    // o caminho "storage-first" que o canal já usa (URL assinada curta, gerada dentro do CRM).
+    let mediaStoragePath: string | undefined;
+    if (input.media_base64) {
+      if (!input.media_mime) throw new Error("media_mime é obrigatório com media_base64.");
+      if (input.media_url) throw new Error("Use media_url OU media_base64, não os dois.");
+      const buffer = Buffer.from(input.media_base64, "base64");
+      const verdict = validateOutboundMedia(input.media_mime, buffer.length);
+      if (!verdict.ok) throw new Error(verdict.message);
+      mediaStoragePath = `${ctx.organizationId}/${opened.conversation_id}/out-${randomUUID()}.${extFromMime(input.media_mime)}`;
+      const { error: upErr } = await createAdminClient()
+        .storage.from("whatsapp-media")
+        .upload(mediaStoragePath, buffer, { contentType: input.media_mime, upsert: false });
+      if (upErr) throw new Error(`Falha ao guardar o arquivo: ${upErr.message}`);
+    }
+
     const parsed = sendMessageSchema.parse({
       conversation_id: opened.conversation_id,
       type: input.type,
       body: input.body,
       media_url: input.media_url,
+      media_storage_path: mediaStoragePath,
       media_mime: input.media_mime,
     });
 
