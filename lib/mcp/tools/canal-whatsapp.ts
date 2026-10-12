@@ -14,6 +14,7 @@ import { z } from "zod";
 
 import { ARCHIVED_AT, queryTolerantToMissingArchived } from "@/lib/channels/archived";
 import { PROVIDERS_DE_MENSAGEM } from "@/lib/channels/capabilities";
+import { getWahaClient } from "@/lib/waha/client";
 import type { McpToolDefinition } from "../types";
 
 const COLUNAS = "id, display_name, phone_number, status, status_reason, waha_session_name";
@@ -52,7 +53,7 @@ export const crmGetWhatsappChannelQr: McpToolDefinition<typeof qrShape> = {
   name: "crm_get_whatsapp_channel_qr",
   description:
     "Devolve o QR code (PNG em base64) para parear o WhatsApp de UM canal que está em SCAN_QR_CODE. O QR vence em segundos: " +
-    "chame de novo para renovar. Se o canal já está conectado (WORKING), devolve só o estado, sem QR. Escanear o QR religa o número.",
+    "chame de novo para renovar. Se a sessão caiu (FAILED/STOPPED) por QR vencido, reinicia só ela (sem logout) para gerar um novo. Se o canal já está conectado (WORKING), devolve só o estado, sem QR. Escanear o QR religa o número.",
   inputSchema: qrShape,
   category: "write",
   requiresRole: "manager",
@@ -69,6 +70,18 @@ export const crmGetWhatsappChannelQr: McpToolDefinition<typeof qrShape> = {
     if (c.archived_at) throw new Error("Canal excluído: não pode ser pareado de novo.");
     if (!c.waha_session_name) throw new Error("Este canal não pareia por QR.");
     if (c.status === "WORKING") return { status: c.status, qr_png_base64: null, message: "O WhatsApp já está conectado." };
+    // O QR vence em ~2 minutos sem escaneamento e a sessão cai para FAILED/STOPPED. Reinício SUAVE (parar + subir, sem logout, como o
+    // "Reconectar" da tela no modo padrão): só para canal que NÃO está conectado, nunca derruba um número em uso.
+    if (c.status === "FAILED" || c.status === "STOPPED") {
+      const waha = getWahaClient();
+      if (!waha) throw new Error("O WhatsApp (WAHA) não está configurado neste ambiente.");
+      try { await waha.stopSession(c.waha_session_name); } catch { /* sessão já parada */ }
+      const remote = (await waha.startSession(c.waha_session_name)) as { status?: string };
+      const next = remote.status ?? "STARTING";
+      await ctx.supabase.from("channel_sessions").update({ status: next, status_reason: null, last_status_change_at: new Date().toISOString(), consecutive_health_fails: 0 })
+        .eq("organization_id", ctx.organizationId).eq("id", input.channel_session_id);
+      return { status: next, qr_png_base64: null, message: "O QR anterior venceu. Gerando um novo… aguarde alguns segundos." };
+    }
     if (c.status !== "SCAN_QR_CODE") return { status: c.status, qr_png_base64: null, message: "O canal ainda não está pronto para o QR. Tente de novo em alguns segundos." };
 
     const baseUrl = process.env.WAHA_API_BASE_URL;
