@@ -4,6 +4,10 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const stopSession = vi.fn(async () => {});
+const startSession = vi.fn(async () => ({ status: "STARTING" }));
+vi.mock("@/lib/waha/client", () => ({ getWahaClient: () => ({ stopSession, startSession }) }));
+
 import type { McpContext } from "@/lib/mcp/types";
 
 import { crmGetWhatsappChannelQr, crmListWhatsappChannels } from "./canal-whatsapp";
@@ -12,7 +16,8 @@ const ORG = "11111111-1111-4111-8111-111111111111";
 const CH = "22222222-2222-4222-8222-222222222222";
 
 // Cliente falso do PostgREST: registra os filtros e devolve `rows`/`row`.
-function ctxWith(opts: { rows?: unknown[]; row?: unknown }): { ctx: McpContext; filters: Array<[string, unknown]> } {
+function ctxWith(opts: { rows?: unknown[]; row?: unknown }): { ctx: McpContext; filters: Array<[string, unknown]>; updates: unknown[] } {
+  const updates: unknown[] = [];
   const filters: Array<[string, unknown]> = [];
   const chain: Record<string, unknown> = {};
   const self = () => chain;
@@ -20,12 +25,14 @@ function ctxWith(opts: { rows?: unknown[]; row?: unknown }): { ctx: McpContext; 
     select: self,
     eq: (k: string, v: unknown) => (filters.push([k, v]), chain),
     in: self,
+    update: (v: unknown) => (updates.push(v), chain),
     is: self,
     order: () => Promise.resolve({ data: opts.rows ?? [], error: null }),
     maybeSingle: () => Promise.resolve({ data: opts.row ?? null, error: null }),
+    then: (ok: (v: unknown) => void) => ok({ data: null, error: null }),
   });
   const ctx = { organizationId: ORG, role: "manager", actor: { type: "user", id: "u" }, apiTokenId: "t", requestId: "r", supabase: { from: () => chain } } as unknown as McpContext;
-  return { ctx, filters };
+  return { ctx, filters, updates };
 }
 
 afterEach(() => {
@@ -65,5 +72,29 @@ describe("crm_get_whatsapp_channel_qr", () => {
     await expect(run({ status: "SCAN_QR_CODE", waha_session_name: "s", archived_at: "2026-01-01" })).rejects.toThrow(/excluído/);
     await expect(run({ status: "SCAN_QR_CODE", waha_session_name: null, archived_at: null })).rejects.toThrow(/não pareia por QR/);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("crm_get_whatsapp_channel_qr — QR vencido", () => {
+  it("canal caído (FAILED/STOPPED) é reiniciado de forma suave, sem logout, e o estado do banco vira STARTING", async () => {
+    for (const status of ["FAILED", "STOPPED"]) {
+      stopSession.mockClear();
+      startSession.mockClear();
+      const { ctx, updates } = ctxWith({ row: { status, waha_session_name: "sessao-1", archived_at: null } });
+      const r = (await crmGetWhatsappChannelQr.handler({ channel_session_id: CH } as never, ctx)) as { status: string; qr_png_base64: null };
+      expect([r.status, r.qr_png_base64]).toEqual(["STARTING", null]);
+      expect(stopSession).toHaveBeenCalledWith("sessao-1");
+      expect(startSession).toHaveBeenCalledWith("sessao-1");
+      expect(updates[0]).toMatchObject({ status: "STARTING", status_reason: null });
+    }
+  });
+
+  it("canal conectado (WORKING) ou esperando o QR NUNCA é reiniciado", async () => {
+    vi.stubEnv("WAHA_API_BASE_URL", "http://waha:3000");
+    vi.stubEnv("WAHA_API_KEY", "chave-de-teste");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(Buffer.from("X"), { status: 200 })));
+    stopSession.mockClear();
+    for (const status of ["WORKING", "SCAN_QR_CODE", "STARTING"]) await crmGetWhatsappChannelQr.handler({ channel_session_id: CH } as never, ctxWith({ row: { status, waha_session_name: "s", archived_at: null } }).ctx);
+    expect(stopSession).not.toHaveBeenCalled();
   });
 });
