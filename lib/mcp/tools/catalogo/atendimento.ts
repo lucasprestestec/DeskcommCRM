@@ -131,6 +131,27 @@ export const TOOLS_ATENDIMENTO = declararTools([
     apenasHumano: true,
   },
   {
+    name: "crm_save_contact",
+    category: "write",
+    rotulo: "Cadastrar ou atualizar um cliente",
+    explicacao: "Cria o cliente ou atualiza o que já existe (pelo telefone) com os dados que o dono ditou: nome, e-mail, aniversário, etiquetas e fatos livres. Soma etiquetas e fatos, não apaga nada, e recusa cliente que pediu exclusão dos dados.",
+    oQueToca: "Cadastro de clientes",
+    risco: "atencao",
+    // Fora do pacote padrão do onboarding (que não admite ferramenta de pessoa): quem dita o dado é o dono, por um sistema externo.
+    pacotes: ["organizar"],
+    apenasHumano: true,
+  },
+  {
+    name: "crm_list_contacts",
+    category: "read",
+    rotulo: "Listar clientes por etiqueta",
+    explicacao: "Lista os clientes da base, filtrando por etiquetas e ordenando pela última atividade. Só leitura.",
+    oQueToca: "Cadastro de clientes",
+    risco: "seguro",
+    pacotes: ["organizar"],
+    apenasHumano: true,
+  },
+  {
     name: "crm_list_whatsapp_channels",
     category: "read",
     rotulo: "Ver os números de WhatsApp e o estado de cada um",
