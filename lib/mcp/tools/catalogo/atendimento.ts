@@ -131,6 +131,27 @@ export const TOOLS_ATENDIMENTO = declararTools([
     apenasHumano: true,
   },
   {
+    name: "crm_list_whatsapp_channels",
+    category: "read",
+    rotulo: "Ver os números de WhatsApp e o estado de cada um",
+    explicacao: "Lista os números de WhatsApp da organização e diz quais estão conectados ou esperando pareamento. Só leitura.",
+    oQueToca: "Canais de WhatsApp",
+    risco: "seguro",
+    // Fora do pacote padrão do onboarding (que não admite ferramenta de pessoa): é leitura de configuração para sistema externo.
+    pacotes: ["organizar"],
+    apenasHumano: true,
+  },
+  {
+    name: "crm_get_whatsapp_channel_qr",
+    category: "write",
+    rotulo: "Mostrar o QR para parear um número de WhatsApp",
+    explicacao: "Devolve o QR code de um número que está esperando pareamento, para o cliente escanear numa tela de outro sistema. Escanear religa o número.",
+    oQueToca: "Pareamento do WhatsApp",
+    risco: "critico",
+    pacotes: ["vender"],
+    apenasHumano: true,
+  },
+  {
     name: "crm_publish_whatsapp_status",
     category: "write",
     rotulo: "Publicar imagem no Status do WhatsApp",

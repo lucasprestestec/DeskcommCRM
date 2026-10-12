@@ -137,6 +137,9 @@ export const ALVO_DE_FUNIL: Record<string, AlvoDeFunil> = {
   crm_start_conversation_and_send: "sem_funil",
   // Publica no Status do número, sem lead nem funil; mesma barreira (manager + apenasHumano).
   crm_publish_whatsapp_status: "sem_funil",
+  // Canais de WhatsApp (estado e QR de pareamento): configuração da organização, sem lead nem funil; barreira = manager + apenasHumano.
+  crm_list_whatsapp_channels: "sem_funil",
+  crm_get_whatsapp_channel_qr: "sem_funil",
   crm_add_case_note: "sem_funil",
   crm_close_human_case: "sem_funil",
   crm_assign_conversation: "sem_funil",
