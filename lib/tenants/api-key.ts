@@ -79,6 +79,8 @@ export async function rotateIntegrationApiKey(input: {
   integrationScope: string;
   /** Nome da chave na tela de chaves de API da organização. */
   name: string;
+  /** `agent` (padrão, menor privilégio) ou `manager` (a instalação ligou `TENANT_PROVISIONING_ALLOW_MANAGER`). */
+  role?: "agent" | "manager";
   requestId?: string;
 }): Promise<string> {
   const admin = createAdminClient();
@@ -145,7 +147,7 @@ export async function rotateIntegrationApiKey(input: {
   const tokenHash = createHash("sha256").update(plaintext).digest();
   // Sem `actor:ai_agent` DE PROPÓSITO — ver "a AUSÊNCIA é a decisão" no
   // cabeçalho. É a ausência que faz `deriveActor` devolver `api_token`.
-  const scopes = ["mcp:read", "mcp:write", "role:agent", input.integrationScope];
+  const scopes = ["mcp:read", "mcp:write", input.role === "manager" ? "role:manager" : "role:agent", input.integrationScope];
 
   const { data: created, error } = await admin
     .from("api_tokens")

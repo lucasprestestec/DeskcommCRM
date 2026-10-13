@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as ProvisionModule from "@/lib/auth/provision";
 
 const h = vi.hoisted(() => ({
-  env: { TENANT_PROVISIONING_SECRET: "" },
+  env: { TENANT_PROVISIONING_SECRET: "", TENANT_PROVISIONING_ALLOW_MANAGER: "" },
   provision: vi.fn(),
   rotate: vi.fn(),
   limite: vi.fn(),
@@ -66,6 +66,7 @@ function pedido(
 beforeEach(() => {
   vi.clearAllMocks();
   h.env.TENANT_PROVISIONING_SECRET = SEGREDO;
+  h.env.TENANT_PROVISIONING_ALLOW_MANAGER = "";
   h.limite.mockResolvedValue({ allowed: true, count: 1, limit: 10, window_sec: 60 });
   h.espiar.mockResolvedValue(0);
   h.provision.mockResolvedValue({ organizationId: "org-1", ownerId: "user-1", replay: false });
@@ -196,5 +197,27 @@ describe("ligada: o provisionamento", () => {
     h.provision.mockRejectedValue(new ProvisionConflictError());
     expect((await POST(pedido(SEGREDO))).status).toBe(409);
     expect(h.rotate).not.toHaveBeenCalled();
+  });
+});
+
+describe("chave de gerente: opt-in da instalação", () => {
+  it("sem o opt-in, pedir key_role manager → 403 e nada é provisionado (o padrão continua agent)", async () => {
+    const res = await POST(pedido(SEGREDO, { ...CORPO, key_role: "manager" }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe("manager_key_not_enabled");
+    expect(h.provision).not.toHaveBeenCalled();
+    expect(h.rotate).not.toHaveBeenCalled();
+  });
+
+  it("com TENANT_PROVISIONING_ALLOW_MANAGER=true, a chave sai como manager", async () => {
+    h.env.TENANT_PROVISIONING_ALLOW_MANAGER = "true";
+    expect((await POST(pedido(SEGREDO, { ...CORPO, key_role: "manager" }))).status).toBe(201);
+    expect(h.rotate).toHaveBeenCalledWith(expect.objectContaining({ role: "manager" }));
+  });
+
+  it("sem key_role o papel NÃO é informado (a regra de agent da chave fica como estava), mesmo com o opt-in ligado", async () => {
+    h.env.TENANT_PROVISIONING_ALLOW_MANAGER = "true";
+    expect((await POST(pedido(SEGREDO))).status).toBe(201);
+    expect(h.rotate.mock.calls[0]![0]).not.toHaveProperty("role");
   });
 });

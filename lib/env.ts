@@ -99,6 +99,11 @@ const schema = z.object({
    * (404); com menos de 32 caracteres também fica desligada.
    */
   TENANT_PROVISIONING_SECRET: z.string().optional().default(""),
+  /**
+   * Deixa o sistema que provisiona pedir chave com papel de GERENTE (`key_role: "manager"`). Vazio = só `agent`, a decisão original do dono
+   * (menor privilégio). Ligue só quando o sistema externo precisa operar a empresa por conta própria (cadastrar clientes, marcar horários).
+   */
+  TENANT_PROVISIONING_ALLOW_MANAGER: z.string().optional().default(""),
 
   // Laboratório local de extensões: origem HTTP exata em 127.0.0.1. O cliente
   // recusa a exceção se a URL do app não for loopback. Vazio mantém HTTPS público.
