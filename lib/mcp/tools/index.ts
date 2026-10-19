@@ -30,7 +30,7 @@ import { crmGetPipelineForecast, crmListPipelines } from "./pipelines";
 import { crmSendWhatsappMessage } from "./messages";
 import { crmStartConversationAndSend } from "./start-conversation";
 import { crmPublishWhatsappStatus } from "./status";
-import { crmListWhatsappChannels, crmGetWhatsappChannelQr } from "./canal-whatsapp";
+import { crmListWhatsappChannels, crmGetWhatsappChannelQr, crmResetWhatsappChannel } from "./canal-whatsapp";
 import { crmSaveContact, crmListContacts } from "./cadastro";
 import {
   crmAssignConversation,
@@ -163,6 +163,7 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmPublishWhatsappStatus,
   crmListWhatsappChannels,
   crmGetWhatsappChannelQr,
+  crmResetWhatsappChannel,
   crmSaveContact,
   crmListContacts,
   crmCreateConversationDraft,
