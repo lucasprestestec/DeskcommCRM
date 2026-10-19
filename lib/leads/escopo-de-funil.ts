@@ -140,6 +140,7 @@ export const ALVO_DE_FUNIL: Record<string, AlvoDeFunil> = {
   // Canais de WhatsApp (estado e QR de pareamento): configuração da organização, sem lead nem funil; barreira = manager + apenasHumano.
   crm_list_whatsapp_channels: "sem_funil",
   crm_get_whatsapp_channel_qr: "sem_funil",
+  crm_reset_whatsapp_channel: "sem_funil",
   // Cadastro de clientes pelo dono (via sistema externo): sem lead nem funil; barreira = manager + apenasHumano.
   crm_save_contact: "sem_funil",
   crm_list_contacts: "sem_funil",

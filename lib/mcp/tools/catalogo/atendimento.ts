@@ -173,6 +173,16 @@ export const TOOLS_ATENDIMENTO = declararTools([
     apenasHumano: true,
   },
   {
+    name: "crm_reset_whatsapp_channel",
+    category: "write",
+    rotulo: "Desconectar ou trocar o número de WhatsApp",
+    explicacao: "Desloga o número de um canal: o celular perde o vínculo e o canal pode esperar um QR novo (trocar de número) ou ficar parado (desconectar). Conversas e configurações do canal continuam.",
+    oQueToca: "Pareamento do WhatsApp",
+    risco: "critico",
+    pacotes: ["vender"],
+    apenasHumano: true,
+  },
+  {
     name: "crm_publish_whatsapp_status",
     category: "write",
     rotulo: "Publicar imagem no Status do WhatsApp",

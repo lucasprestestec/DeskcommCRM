@@ -1,16 +1,26 @@
 /**
- * Canais de WhatsApp pelo MCP (só leitura/pareamento): lista com estado, QR só quando o canal espera pareamento,
+ * Canais de WhatsApp pelo MCP (leitura, pareamento e desconectar/trocar número): lista com estado, QR só quando o canal espera pareamento,
  * nunca de canal de outra organização nem arquivado, e nada de criar canal.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const stopSession = vi.fn(async () => {});
-const startSession = vi.fn(async () => ({ status: "STARTING" }));
-vi.mock("@/lib/waha/client", () => ({ getWahaClient: () => ({ stopSession, startSession }) }));
+const { stopSession, logoutSession, startSession, definirRecebimentoDeGrupos, audit, assertWahaConnectionIdle, sincronizarRecebimentoDeGrupos } = vi.hoisted(() => ({
+  stopSession: vi.fn(async () => {}),
+  logoutSession: vi.fn(async () => {}),
+  startSession: vi.fn(async () => ({ status: "STARTING" })),
+  definirRecebimentoDeGrupos: vi.fn(async () => {}),
+  audit: vi.fn(async () => {}),
+  assertWahaConnectionIdle: vi.fn(async () => {}),
+  sincronizarRecebimentoDeGrupos: vi.fn(async () => {}),
+}));
+vi.mock("@/lib/waha/client", () => ({ getWahaClient: () => ({ stopSession, logoutSession, startSession, definirRecebimentoDeGrupos }) }));
+vi.mock("@/lib/audit", () => ({ audit }));
+vi.mock("@/lib/channels/connect-waha", () => ({ assertWahaConnectionIdle }));
+vi.mock("@/lib/grupos/sincronizar-filtro", () => ({ sincronizarRecebimentoDeGrupos }));
 
 import type { McpContext } from "@/lib/mcp/types";
 
-import { crmGetWhatsappChannelQr, crmListWhatsappChannels } from "./canal-whatsapp";
+import { crmGetWhatsappChannelQr, crmListWhatsappChannels, crmResetWhatsappChannel } from "./canal-whatsapp";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
 const CH = "22222222-2222-4222-8222-222222222222";
@@ -96,5 +106,52 @@ describe("crm_get_whatsapp_channel_qr — QR vencido", () => {
     stopSession.mockClear();
     for (const status of ["WORKING", "SCAN_QR_CODE", "STARTING"]) await crmGetWhatsappChannelQr.handler({ channel_session_id: CH } as never, ctxWith({ row: { status, waha_session_name: "s", archived_at: null } }).ctx);
     expect(stopSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("crm_reset_whatsapp_channel", () => {
+  const run = (row: unknown, input: Record<string, unknown> = {}) =>
+    crmResetWhatsappChannel.handler({ channel_session_id: CH, ...input } as never, ctxWith({ row }).ctx);
+  const ok = { status: "WORKING", waha_session_name: "sessao-1", archived_at: null };
+
+  it("trocar de número: para, desloga e sobe de novo, grava STARTING, ressincroniza grupos e audita", async () => {
+    for (const m of [stopSession, logoutSession, startSession, audit, sincronizarRecebimentoDeGrupos]) m.mockClear();
+    const { ctx, updates, filters } = ctxWith({ row: ok });
+    const r = (await crmResetWhatsappChannel.handler({ channel_session_id: CH } as never, ctx)) as { status: string };
+    expect(r.status).toBe("STARTING");
+    expect(stopSession).toHaveBeenCalledWith("sessao-1");
+    expect(logoutSession).toHaveBeenCalledWith("sessao-1");
+    expect(startSession).toHaveBeenCalledWith("sessao-1");
+    expect(updates[0]).toMatchObject({ status: "STARTING", status_reason: null });
+    expect(filters).toEqual(expect.arrayContaining([["organization_id", ORG], ["id", CH]]));
+    expect(sincronizarRecebimentoDeGrupos).toHaveBeenCalledOnce();
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: "channel.reconnected", organizationId: ORG, metadata: expect.objectContaining({ force: true, reconnect: true, via: "mcp" }) }));
+  });
+
+  it("desconectar (reconnect=false): desloga e deixa o canal STOPPED, sem subir a sessão", async () => {
+    for (const m of [stopSession, logoutSession, startSession, sincronizarRecebimentoDeGrupos]) m.mockClear();
+    const { ctx, updates } = ctxWith({ row: ok });
+    const r = (await crmResetWhatsappChannel.handler({ channel_session_id: CH, reconnect: false } as never, ctx)) as { status: string };
+    expect(r.status).toBe("STOPPED");
+    expect(logoutSession).toHaveBeenCalledOnce();
+    expect(startSession).not.toHaveBeenCalled();
+    expect(sincronizarRecebimentoDeGrupos).not.toHaveBeenCalled();
+    expect(updates[0]).toMatchObject({ status: "STOPPED" });
+  });
+
+  it("canal de outra org, arquivado ou sem sessão recusa, e o WAHA nem é chamado", async () => {
+    for (const m of [stopSession, logoutSession, startSession]) m.mockClear();
+    await expect(run(null)).rejects.toThrow(/não encontrado/);
+    await expect(run({ ...ok, archived_at: "2026-01-01" })).rejects.toThrow(/excluído/);
+    await expect(run({ ...ok, waha_session_name: null })).rejects.toThrow(/não conecta por QR/);
+    expect(stopSession).not.toHaveBeenCalled();
+    expect(logoutSession).not.toHaveBeenCalled();
+  });
+
+  it("falha do WAHA vira erro legível e o banco NÃO é atualizado", async () => {
+    logoutSession.mockRejectedValueOnce(new Error("waha_delete_200"));
+    const { ctx, updates } = ctxWith({ row: ok });
+    await expect(crmResetWhatsappChannel.handler({ channel_session_id: CH } as never, ctx)).rejects.toThrow(/Não foi possível trocar o número agora \(waha_delete_200\)/);
+    expect(updates).toHaveLength(0);
   });
 });
