@@ -33,7 +33,9 @@ export type ResultadoDaConexao =
 
 export async function conectarCanalOficial(input: {
   organizationId: string;
-  userId: string;
+  /** `null` quando quem conecta é uma chave de servidor (`apiTokenId`), não uma pessoa. */
+  userId: string | null;
+  apiTokenId?: string | null;
   requestId: string;
   phoneNumberId: string;
   wabaId: string;
@@ -42,7 +44,16 @@ export async function conectarCanalOficial(input: {
   base: string;
   t: (texto: string) => string;
 }): Promise<ResultadoDaConexao> {
-  const { organizationId: orgId, userId, requestId, phoneNumberId, wabaId, token, t } = input;
+  const {
+    organizationId: orgId,
+    userId,
+    apiTokenId,
+    requestId,
+    phoneNumberId,
+    wabaId,
+    token,
+    t,
+  } = input;
 
   // VALIDA ANTES DE GRAVAR — o miolo não sabe com quem fala; pergunta se a
   // credencial presta e o canal responde.
@@ -128,6 +139,7 @@ export async function conectarCanalOficial(input: {
       linha,
       {
         userId,
+        apiTokenId: apiTokenId ?? null,
         requestId,
         metadata: { provider: CHANNEL_PROVIDER_META, phone_number: linha.phone_number },
       },
