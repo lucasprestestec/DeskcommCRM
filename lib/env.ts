@@ -510,6 +510,13 @@ const schema = z.object({
    */
   META_WEBHOOK_BASE_URL: z.string().optional().default(""),
   /**
+   * Cadastro Incorporado da Meta (botão "Conectar WhatsApp"): id do app e id da
+   * configuração do Login do Facebook para Empresas. Não são segredo. Vazios = o botão
+   * não aparece e o formulário manual segue sendo o caminho.
+   */
+  META_APP_ID: z.string().optional().default(""),
+  META_EMBEDDED_SIGNUP_CONFIG_ID: z.string().optional().default(""),
+  /**
    * Base (host) da Graph API do canal oficial, e a do eixo de anúncio (#817).
    *
    * `optional().default("")` e NÃO validada como URL aqui, por dois motivos

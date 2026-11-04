@@ -37,6 +37,19 @@ import type { Idioma } from "./idiomas";
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
 
 export const DICIONARIO: Traducoes = {
+  // ─── CONECTAR WHATSAPP PELA META (Cadastro Incorporado) ───
+  "Conectar WhatsApp com um clique": { es: "Conectar WhatsApp con un clic" },
+  "Para quem já usa o app WhatsApp Business no celular. Você entra com o Facebook, informa o número e confirma no app. O CRM guarda tudo sozinho e o app continua funcionando normalmente.": {
+    es: "Para quien ya usa la app WhatsApp Business en el celular. Inicias sesión con Facebook, indicas el número y confirmas en la app. El CRM guarda todo solo y la app sigue funcionando con normalidad.",
+  },
+  "Conexão cancelada. Nada foi gravado.": { es: "Conexión cancelada. No se guardó nada." },
+  "Não consegui abrir a janela da Meta. Desative o bloqueador de anúncios ou use o formulário abaixo.": {
+    es: "No pude abrir la ventana de Meta. Desactiva el bloqueador de anuncios o usa el formulario de abajo.",
+  },
+  "Conectado, mas a Meta não aceitou a sincronização de contatos e conversas. Conecte de novo em até 24 horas.": {
+    es: "Conectado, pero Meta no aceptó la sincronización de contactos y conversaciones. Vuelve a conectar en un plazo de 24 horas.",
+  },
+
   // ─── EMPRESAS, PESSOAS E IMPORTAÇÃO (metade B2B do #1621, de @renatofortal) ───
   "Arquivo": {"es": "Archivo"},
   "Atualizado": {"es": "Actualizado"},

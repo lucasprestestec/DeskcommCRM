@@ -6,7 +6,9 @@ import { metadataInicialDoCanal } from "@/lib/ai/elegibilidade/pre-go-live";
 const RAIZ = process.cwd();
 
 const CAMINHOS_DE_CRIACAO = [
-  "app/api/v1/channels/official/route.ts",
+  // O canal oficial é gravado no miolo compartilhado pelo formulário manual e pelo
+  // Cadastro Incorporado; a rota só o chama.
+  "lib/channels/meta/conectar-canal.ts",
   "lib/channels/connect.ts",
 ] as const;
 
