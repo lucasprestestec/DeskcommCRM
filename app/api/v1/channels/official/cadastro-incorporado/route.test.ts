@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as Cadastro from "@/lib/channels/meta/cadastro-incorporado";
 
 const h = vi.hoisted(() => ({
-  role: vi.fn(),
+  dual: vi.fn(),
+  teto: vi.fn(),
   support: vi.fn(),
   audit: vi.fn(),
   appDaMeta: vi.fn(),
@@ -12,7 +13,10 @@ const h = vi.hoisted(() => ({
   trocar: vi.fn(),
   sync: vi.fn(),
 }));
-vi.mock("@/lib/auth/require-role", () => ({ requireRole: h.role }));
+vi.mock("@/lib/api/auth-dual", () => ({
+  resolveAuthDual: h.dual,
+  tetoDeEscritaDoToken: h.teto,
+}));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: h.support }));
 vi.mock("@/lib/audit", () => ({ audit: h.audit }));
 vi.mock("@/lib/channels/meta/app", () => ({ appDaMeta: h.appDaMeta }));
@@ -40,15 +44,28 @@ const CORPO = {
   evento: "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING",
 };
 
+const SESSAO = {
+  ok: true,
+  via: "session",
+  organizationId: "org-confiavel",
+  actor: { type: "user", id: "admin" },
+  idioma: "pt-BR",
+};
+const TOKEN = {
+  ok: true,
+  via: "token",
+  organizationId: "org-do-token",
+  actor: { type: "api_token", id: "tok-1" },
+  apiTokenId: "tok-1",
+  scopes: ["mcp:write"],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("META_APP_ID", "APP1");
   vi.stubEnv("META_EMBEDDED_SIGNUP_CONFIG_ID", "CFG1");
-  h.role.mockResolvedValue({
-    ok: true,
-    org: { orgId: "org-confiavel" },
-    user: { id: "admin", idioma: "pt-BR" },
-  });
+  h.teto.mockResolvedValue(null);
+  h.dual.mockResolvedValue(SESSAO);
   h.support.mockResolvedValue(null);
   h.appDaMeta.mockResolvedValue({ appSecret: VALOR_DO_APP, verifyToken: "v" });
   h.trocar.mockResolvedValue({ ok: true, token: VALOR_DO_CLIENTE });
@@ -68,15 +85,18 @@ beforeEach(() => {
 describe("GET", () => {
   it("exige admin e diz o que falta, sem nunca devolver o valor do segredo", async () => {
     h.appDaMeta.mockResolvedValue({ appSecret: null, verifyToken: null });
-    const r = await GET();
-    expect(h.role).toHaveBeenCalledWith("admin", expect.anything());
+    const r = await GET(new NextRequest(URL_));
+    expect(h.dual).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ role: "admin", tokenRole: "manager", scope: "mcp:read" }),
+    );
     const { data } = await r.json();
     expect(data.disponivel).toBe(false);
     expect(data.faltando).toEqual(["META_APP_SECRET"]);
   });
 
   it("disponível quando app id, configuração e segredo existem — e o segredo não vai na resposta", async () => {
-    const { data } = await (await GET()).json();
+    const { data } = await (await GET(new NextRequest(URL_))).json();
     expect(data).toMatchObject({
       disponivel: true,
       app_id: "APP1",
@@ -170,6 +190,46 @@ describe("POST", () => {
     h.support.mockResolvedValue(new Response(null, { status: 403 }));
     const r = await POST(req("POST", CORPO));
     expect(r.status).toBe(403);
-    expect(h.role).not.toHaveBeenCalled();
+    expect(h.dual).not.toHaveBeenCalled();
+  });
+
+  it("chave de gerente do servidor: conecta a organização DO TOKEN e audita o token", async () => {
+    h.dual.mockResolvedValue(TOKEN);
+    const r = await POST(req("POST", { ...CORPO, organization_id: "org-do-atacante" }));
+    expect(r.status).toBe(200);
+    expect(h.dual).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ role: "admin", tokenRole: "manager", scope: "mcp:write" }),
+    );
+    expect(h.conectar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-do-token",
+        userId: null,
+        apiTokenId: "tok-1",
+      }),
+    );
+    expect(h.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-do-token",
+        actorUserId: null,
+        actorApiTokenId: "tok-1",
+      }),
+    );
+  });
+
+  it("chave sem permissão é recusada antes de gastar o código da Meta", async () => {
+    h.dual.mockResolvedValue({ ok: false, response: new Response(null, { status: 403 }) });
+    const r = await POST(req("POST", CORPO));
+    expect(r.status).toBe(403);
+    expect(h.trocar).not.toHaveBeenCalled();
+    expect(h.conectar).not.toHaveBeenCalled();
+  });
+
+  it("teto de escrita do token vale: 429 antes da Meta", async () => {
+    h.dual.mockResolvedValue(TOKEN);
+    h.teto.mockResolvedValue(new Response(null, { status: 429 }));
+    const r = await POST(req("POST", CORPO));
+    expect(r.status).toBe(429);
+    expect(h.trocar).not.toHaveBeenCalled();
   });
 });

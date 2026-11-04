@@ -21,9 +21,9 @@ import { randomUUID } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { resolveAuthDual, tetoDeEscritaDoToken } from "@/lib/api/auth-dual";
 import { fail, ok } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
-import { requireRole } from "@/lib/auth/require-role";
 import { appDaMeta } from "@/lib/channels/meta/app";
 import {
   configDoCadastroIncorporado,
@@ -33,6 +33,7 @@ import {
 } from "@/lib/channels/meta/cadastro-incorporado";
 import { conectarCanalOficial } from "@/lib/channels/meta/conectar-canal";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { IDIOMA_PADRAO } from "@/lib/i18n/idiomas";
 import { basePublicaDoWebhookMeta } from "@/lib/webhooks/url-publica";
 
 export const dynamic = "force-dynamic";
@@ -61,10 +62,24 @@ async function oQueFalta(): Promise<{
   return { faltando, config, appSecret };
 }
 
-export async function GET(): Promise<NextResponse> {
+/**
+ * Sessão (administrador) OU chave de servidor `dsk_…` de gerente — a que o Chico guarda
+ * para cada empresa que provisiona. `organizationId` sai da sessão ou da linha do token,
+ * nunca do corpo. O rank do token é `manager`, e não `admin`: é a chave que o
+ * provisionamento já emite, e ela só alcança a PRÓPRIA organização.
+ */
+const exigencia = (requestId: string, scope: "mcp:read" | "mcp:write") => ({
+  requestId,
+  resource: "channels_official",
+  role: "admin" as const,
+  tokenRole: "manager" as const,
+  scope,
+});
+
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const requestId = randomUUID();
-  const authz = await requireRole("admin", { requestId, resource: "channels_official" });
-  if (!authz.ok) return authz.response;
+  const authz = await resolveAuthDual(req, exigencia(requestId, "mcp:read"));
+  if (!authz.ok) return authz.response as NextResponse;
 
   const { faltando, config } = await oQueFalta();
   return ok(
@@ -84,9 +99,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (supportDenied) return supportDenied;
 
   const requestId = randomUUID();
-  const authz = await requireRole("admin", { requestId, resource: "channels_official" });
-  if (!authz.ok) return authz.response;
-  const t = (texto: string) => traduzir(texto, authz.user.idioma);
+  const authz = await resolveAuthDual(req, exigencia(requestId, "mcp:write"));
+  if (!authz.ok) return authz.response as NextResponse;
+  const limitada = await tetoDeEscritaDoToken(authz, "canal-oficial", requestId);
+  if (limitada) return limitada as NextResponse;
+  const t = (texto: string) => traduzir(texto, authz.idioma ?? IDIOMA_PADRAO);
+  const userId = authz.actor.type === "user" ? authz.actor.id : null;
 
   const parsed = terminarSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -133,8 +151,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const conexao = await conectarCanalOficial({
-    organizationId: authz.org.orgId,
-    userId: authz.user.id,
+    organizationId: authz.organizationId,
+    userId,
+    apiTokenId: authz.apiTokenId ?? null,
     requestId,
     phoneNumberId: phone_number_id,
     wabaId: waba_id,
@@ -154,14 +173,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   void audit({
     action: "channel.connected",
-    actorUserId: authz.user.id,
-    organizationId: authz.org.orgId,
+    actorUserId: userId,
+    actorApiTokenId: authz.apiTokenId ?? null,
+    organizationId: authz.organizationId,
     resourceType: "channel_session",
     resourceId: conexao.channelSessionId,
     requestId,
     metadata: {
       canal: "oficial",
-      origem: "cadastro_incorporado",
+      origem: authz.via === "token" ? "cadastro_incorporado_servidor" : "cadastro_incorporado",
       coexistencia: true,
       sincronizacao: sincronizacao.map((s) => ({ tipo: s.tipo, pedida: s.pedida })),
     },

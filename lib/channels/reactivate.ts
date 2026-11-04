@@ -55,7 +55,9 @@ export interface ChannelSessionTarget {
 
 /** Quem pediu a volta. Sem ator, a entrada de auditoria não serviria de trilha. */
 export interface ChannelReactivationActor {
-  userId: string;
+  /** `null` quando quem pediu foi uma chave de servidor (`apiTokenId`), não uma pessoa. */
+  userId: string | null;
+  apiTokenId?: string | null;
   requestId?: string | null;
   /** O que faz quem lê o histórico reconhecer o canal (provider, número…). */
   metadata?: Record<string, unknown>;
@@ -106,6 +108,7 @@ export async function reactivateChannelSession(
     void audit({
       action: "channel.reactivated",
       actorUserId: actor.userId,
+      actorApiTokenId: actor.apiTokenId ?? null,
       organizationId: target.organizationId,
       resourceType: "channel_session",
       resourceId: target.channelSessionId,
