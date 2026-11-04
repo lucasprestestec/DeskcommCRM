@@ -37,6 +37,16 @@ import type { Idioma } from "./idiomas";
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
 
 export const DICIONARIO: Traducoes = {
+  // ─── NÚMEROS DA CONTA DA META (ligar sem copiar ID e token) ───
+  "Números da sua conta da Meta": { es: "Números de tu cuenta de Meta" },
+  "Cadastrou um número novo na Meta? Ele aparece aqui. Escolha o número e ele é ligado a esta organização, sem copiar ID nem token.": {
+    es: "¿Registraste un número nuevo en Meta? Aparece aquí. Elige el número y se vincula a esta organización, sin copiar ID ni token.",
+  },
+  "A Meta não respondeu à lista de números:": { es: "Meta no respondió a la lista de números:" },
+  "Ligado a esta organização": { es: "Vinculado a esta organización" },
+  "Em uso em outra organização": { es: "En uso en otra organización" },
+  "Ligar a esta organização": { es: "Vincular a esta organización" },
+  "Nenhum número na conta da Meta ainda.": { es: "Aún no hay números en la cuenta de Meta." },
   // ─── CONECTAR WHATSAPP PELA META (Cadastro Incorporado) ───
   "Conectar WhatsApp com um clique": { es: "Conectar WhatsApp con un clic" },
   "Para quem já usa o app WhatsApp Business no celular. Você entra com o Facebook, informa o número e confirma no app. O CRM guarda tudo sozinho e o app continua funcionando normalmente.": {

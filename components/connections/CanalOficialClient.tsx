@@ -19,6 +19,7 @@ import {
   useCadastroIncorporadoConfig,
   useTerminarCadastroIncorporado,
 } from "@/hooks/channels/useCadastroIncorporado";
+import { useLigarNumeroDaConta, useNumerosDaConta } from "@/hooks/channels/useNumerosDaConta";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useT } from "@/hooks/i18n/useT";
 import { ChannelAiAccess } from "./ChannelAiAccess";
@@ -77,6 +78,22 @@ export function CanalOficialClient() {
   const cadastro = useCadastroIncorporadoConfig().data?.data;
   const terminarCadastro = useTerminarCadastroIncorporado();
   const [abrindo, setAbrindo] = useState(false);
+  const numerosDaConta = useNumerosDaConta();
+  const ligarNumero = useLigarNumeroDaConta();
+  const contaDaMeta = numerosDaConta.data?.data;
+
+  async function ligar(phoneNumberId: string) {
+    const r = await ligarNumero.mutateAsync(phoneNumberId);
+    toast.success(`${t("Conectado:")} ${r.data.displayName} ${r.data.phoneNumber ?? ""}`.trim());
+    const recusadas = r.data.sincronizacao.filter((x) => !x.pedida);
+    if (recusadas.length > 0) {
+      toast.warning(
+        `${t("Conectado, mas a Meta não aceitou a sincronização de contatos e conversas. Conecte de novo em até 24 horas.")} (${recusadas
+          .map((x) => x.erro)
+          .join("; ")})`,
+      );
+    }
+  }
 
   const estado = data?.data;
 
@@ -295,6 +312,62 @@ export function CanalOficialClient() {
           >
             {abrindo || terminarCadastro.isPending ? t("Conectando…") : t("Conectar WhatsApp")}
           </Button>
+        </Card>
+      ) : null}
+
+      {contaDaMeta?.disponivel ? (
+        <Card className="p-4" data-testid="numeros-da-conta">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-medium">{t("Números da sua conta da Meta")}</h2>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => numerosDaConta.refetch()}
+              disabled={numerosDaConta.isFetching}
+            >
+              {numerosDaConta.isFetching ? t("Atualizando…") : t("Atualizar lista")}
+            </Button>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t(
+              "Cadastrou um número novo na Meta? Ele aparece aqui. Escolha o número e ele é ligado a esta organização, sem copiar ID nem token.",
+            )}
+          </p>
+          {contaDaMeta.erro ? (
+            <p className="mt-3 text-sm text-destructive">
+              {t("A Meta não respondeu à lista de números:")} {contaDaMeta.erro}
+            </p>
+          ) : null}
+          <ul className="mt-3 flex flex-col gap-2">
+            {contaDaMeta.numeros.map((n) => (
+              <li
+                key={n.phone_number_id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium">{n.nome ?? t("Sem nome")}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{n.numero ?? n.phone_number_id}</span>
+                </div>
+                {n.estado === "nesta_organizacao" ? (
+                  <Badge variant="outline">{t("Ligado a esta organização")}</Badge>
+                ) : n.estado === "em_uso" ? (
+                  <Badge variant="outline">{t("Em uso em outra organização")}</Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => ligar(n.phone_number_id)}
+                    disabled={ligarNumero.isPending}
+                    data-testid="btn-ligar-numero"
+                  >
+                    {ligarNumero.isPending ? t("Ligando…") : t("Ligar a esta organização")}
+                  </Button>
+                )}
+              </li>
+            ))}
+            {contaDaMeta.numeros.length === 0 && !contaDaMeta.erro ? (
+              <li className="text-sm text-muted-foreground">{t("Nenhum número na conta da Meta ainda.")}</li>
+            ) : null}
+          </ul>
         </Card>
       ) : null}
 
