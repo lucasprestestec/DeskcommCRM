@@ -517,6 +517,15 @@ const schema = z.object({
   META_APP_ID: z.string().optional().default(""),
   META_EMBEDDED_SIGNUP_CONFIG_ID: z.string().optional().default(""),
   /**
+   * A conta da Meta de quem opera a instalação, para ligar os números dos clientes a uma
+   * organização com um clique (id da conta do WhatsApp + token de usuário do sistema).
+   * NÃO reutilizam META_SYSTEM_USER_TOKEN, de propósito: aquele é o piso de instalação de
+   * um número só e já foi fonte de vazamento entre organizações. Este token só lista
+   * números (para administrador da instalação) e é entregue ao canal que o operador ligar.
+   */
+  META_NUMEROS_WABA_ID: z.string().optional().default(""),
+  META_NUMEROS_TOKEN: z.string().optional().default(""),
+  /**
    * Base (host) da Graph API do canal oficial, e a do eixo de anúncio (#817).
    *
    * `optional().default("")` e NÃO validada como URL aqui, por dois motivos

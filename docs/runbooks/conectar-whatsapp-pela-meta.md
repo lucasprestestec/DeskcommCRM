@@ -49,3 +49,30 @@ Sem os dois (e sem o App Secret) o botão não aparece. Nenhum dos dois é segre
   (`smb_message_echoes`) já eram espelhadas.
 - Status do WhatsApp **não** é publicado pela API oficial (a Meta não oferece); ver o
   roteiro de teste em `docs/testing/roteiro-coexistencia-status.md`.
+
+## Ligar um número da sua conta da Meta sem copiar ID nem token
+
+Para quem opera a instalação, paga por UM portfólio e hospeda os números dos clientes nele.
+O número é cadastrado na Meta (pela janela do botão ou pelo painel *Contas do WhatsApp ›
+Adicionar*); a ligação ao CRM é um clique, em **Conexões › API Oficial (Meta) › Números da sua
+conta da Meta**.
+
+No `.env` da instalação:
+
+```
+META_NUMEROS_WABA_ID=<id da conta do WhatsApp (messaging account)>
+META_NUMEROS_TOKEN=<token de um usuário do sistema do portfólio, sem expiração>
+```
+
+- O token precisa ter a conta do WhatsApp atribuída e as permissões `whatsapp_business_management`
+  e `whatsapp_business_messaging`.
+- **Não use `META_SYSTEM_USER_TOKEN` aqui.** Aquele é o piso de instalação de um número só, e já
+  foi fonte de vazamento entre organizações. Este token só lista números e é entregue ao canal que
+  o operador ligar (cifrado, como no formulário manual).
+- **Só o administrador da instalação** (administrador da plataforma, fora do modo suporte) vê a
+  lista: ela mostra a carteira de clientes de quem opera. Administrador de uma organização comum
+  não vê nada.
+- O número escolhido é ligado à organização **da sessão**. Um número já ligado a outra
+  organização é recusado (409), sem revelar qual.
+- Número que ainda vive no app WhatsApp Business ganha o pedido de sincronização de contatos e
+  histórico (a Meta aceita uma vez, logo depois do cadastro).
