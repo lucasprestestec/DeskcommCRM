@@ -804,6 +804,17 @@ type CategoriaDeHost =
 type EntradaDeHost = { categoria: CategoriaDeHost; motivo: string };
 
 const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
+  // ── conectar o WhatsApp pela Meta (Cadastro Incorporado) ──
+  "connect.facebook.net": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "SDK de login da Meta que `hooks/channels/useCadastroIncorporado.ts` carrega no navegador para abrir o fluxo de cadastro do WhatsApp (botão Conectar WhatsApp). É o endereço oficial do fornecedor e o navegador fala com ele; trocar pelo do revendedor quebraria o login.",
+  },
+  "facebook.com": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "origem que o mesmo hook confere nas mensagens da janela de cadastro da Meta antes de aceitá-las (compara o host exato, não o final do texto). Não é destino de chamada: é a identidade de quem pode afirmar que o cliente terminou o cadastro.",
+  },
   "datamanager.googleapis.com": {
     categoria: "FORNECEDOR",
     motivo: "endpoint oficial da Google Data Manager API: recebe conversões e consulta o processamento na conta autorizada pela própria organização. O destino pertence ao fornecedor e não à instalação do CRM.",

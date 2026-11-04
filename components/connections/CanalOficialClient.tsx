@@ -13,6 +13,12 @@ import {
   useOfficialChannel,
   useRegistrarWebhookOficial,
 } from "@/hooks/channels/useOfficialChannel";
+import {
+  abrirCadastroDaMeta,
+  FalhaDoCadastro,
+  useCadastroIncorporadoConfig,
+  useTerminarCadastroIncorporado,
+} from "@/hooks/channels/useCadastroIncorporado";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useT } from "@/hooks/i18n/useT";
 import { ChannelAiAccess } from "./ChannelAiAccess";
@@ -68,8 +74,45 @@ export function CanalOficialClient() {
   const conectar = useConnectOfficialChannel();
   const registrarWebhook = useRegistrarWebhookOficial();
   const [form, setForm] = useState({ phone_number_id: "", waba_id: "", token: "" });
+  const cadastro = useCadastroIncorporadoConfig().data?.data;
+  const terminarCadastro = useTerminarCadastroIncorporado();
+  const [abrindo, setAbrindo] = useState(false);
 
   const estado = data?.data;
+
+  async function conectarPelaMeta() {
+    if (!cadastro?.app_id || !cadastro.config_id || !cadastro.graph_version) return;
+    setAbrindo(true);
+    try {
+      const retorno = await abrirCadastroDaMeta({
+        app_id: cadastro.app_id,
+        config_id: cadastro.config_id,
+        graph_version: cadastro.graph_version,
+      });
+      const r = await terminarCadastro.mutateAsync(retorno);
+      toast.success(`${t("Conectado:")} ${r.data.displayName} ${r.data.phoneNumber ?? ""}`.trim());
+      const recusadas = r.data.sincronizacao.filter((s) => !s.pedida);
+      if (recusadas.length > 0) {
+        // Não desfaz a conexão, mas a Meta só aceita o histórico dentro de 24 horas.
+        toast.warning(
+          `${t("Conectado, mas a Meta não aceitou a sincronização de contatos e conversas. Conecte de novo em até 24 horas.")} (${recusadas
+            .map((s) => s.erro)
+            .join("; ")})`,
+        );
+      }
+    } catch (err) {
+      if (err instanceof FalhaDoCadastro) {
+        toast.error(
+          err.motivo === "sdk_bloqueado"
+            ? t("Não consegui abrir a janela da Meta. Desative o bloqueador de anúncios ou use o formulário abaixo.")
+            : t("Conexão cancelada. Nada foi gravado."),
+        );
+      }
+      // Os demais erros já saíram pelo `onError` da mutação (`showApiError`).
+    } finally {
+      setAbrindo(false);
+    }
+  }
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
@@ -234,6 +277,25 @@ export function CanalOficialClient() {
             </>
           }
         />
+      ) : null}
+
+      {cadastro?.disponivel ? (
+        <Card className="p-4" data-testid="conectar-pela-meta">
+          <h2 className="font-medium">{t("Conectar WhatsApp com um clique")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t(
+              "Para quem já usa o app WhatsApp Business no celular. Você entra com o Facebook, informa o número e confirma no app. O CRM guarda tudo sozinho e o app continua funcionando normalmente.",
+            )}
+          </p>
+          <Button
+            className="mt-4"
+            onClick={conectarPelaMeta}
+            disabled={abrindo || terminarCadastro.isPending}
+            data-testid="btn-conectar-pela-meta"
+          >
+            {abrindo || terminarCadastro.isPending ? t("Conectando…") : t("Conectar WhatsApp")}
+          </Button>
+        </Card>
       ) : null}
 
       <Card className="p-4">
