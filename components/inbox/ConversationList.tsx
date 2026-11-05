@@ -1,7 +1,19 @@
 "use client";
 import { ehAFila } from "@/lib/inbox/comando-da-conversa";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useT } from "@/hooks/i18n/useT";
+import { useArquivarVarias } from "@/hooks/inbox/useCloseConversation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { InfiniteData, UseInfiniteQueryResult } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -113,6 +125,44 @@ export function ConversationList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
+  // SELEÇÃO EM MASSA (arquivar várias). Só vale para o que está CARREGADO na
+  // tela — "Carregar mais" traz mais linhas e elas entram desmarcadas. Na aba
+  // Arquivadas não há o que arquivar, então o modo nem é oferecido.
+  const arquivarVarias = useArquivarVarias();
+  const [selecionando, setSelecionando] = useState(false);
+  const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
+  const [confirmarLote, setConfirmarLote] = useState(false);
+  const jaArquivadas = filters.status === "archived";
+  const modoSelecao = selecionando && !jaArquivadas;
+  // Só conta o que ainda está na tela: a linha que sumiu (arquivada, ou por filtro)
+  // não pode continuar entrando na conta do botão.
+  const marcadasVisiveis = useMemo(() => items.filter((i) => marcadas.has(i.id)), [items, marcadas]);
+  const todasMarcadas = items.length > 0 && marcadasVisiveis.length === items.length;
+  const marcar = (id: string) =>
+    setMarcadas((atual) => {
+      const novo = new Set(atual);
+      if (!novo.delete(id)) novo.add(id);
+      return novo;
+    });
+  const sairDaSelecao = () => {
+    setSelecionando(false);
+    setMarcadas(new Set());
+  };
+  async function arquivarMarcadas() {
+    const alvos = marcadasVisiveis.map((c) => ({ id: c.id, service_revision: c.service_revision }));
+    const r = await arquivarVarias.mutateAsync(alvos);
+    if (r.falhas.length === 0) {
+      toast.success(`${t("Conversas arquivadas:")} ${r.arquivadas.length}`);
+      sairDaSelecao();
+    } else {
+      // As que falharam continuam marcadas, para tentar de novo.
+      toast.error(
+        `${t("Arquivadas:")} ${r.arquivadas.length}. ${t("Não puderam ser arquivadas (alguém mexeu nelas ou você não tem permissão):")} ${r.falhas.length}`,
+      );
+      setMarcadas(new Set(r.falhas));
+    }
+  }
+
   if (q.isLoading) {
     return (
       <div className="space-y-3 p-3">
@@ -153,6 +203,51 @@ export function ConversationList({
 
   return (
     <div className="flex h-full flex-col">
+      {!jaArquivadas && items.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-1.5">
+          {modoSelecao ? (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setMarcadas(todasMarcadas ? new Set() : new Set(items.map((i) => i.id)))}
+              >
+                {todasMarcadas ? t("Desmarcar todas") : `${t("Selecionar todas")} (${items.length})`}
+              </Button>
+              <Button
+                size="sm"
+                disabled={marcadasVisiveis.length === 0 || arquivarVarias.isPending}
+                onClick={() => setConfirmarLote(true)}
+              >
+                {arquivarVarias.isPending ? t("Arquivando...") : `${t("Arquivar")} (${marcadasVisiveis.length})`}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={sairDaSelecao} disabled={arquivarVarias.isPending}>
+                {t("Cancelar")}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={() => setSelecionando(true)}>
+              {t("Selecionar")}
+            </Button>
+          )}
+        </div>
+      )}
+      <AlertDialog open={confirmarLote} onOpenChange={setConfirmarLote}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Arquivar as conversas marcadas?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                "Arquivar encerra estes atendimentos e guarda as conversas no histórico. Se o cliente escrever de novo, a conversa volta.",
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void arquivarMarcadas()}>{t("Arquivar")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="flex-1 overflow-y-auto">
         {/* Vazio por FILTRO: fica DENTRO do return, nunca como `return` precoce —
             e por isso o bloco do `hasNextPage` abaixo continua sendo alcancado. */}
@@ -170,6 +265,9 @@ export function ConversationList({
             mostrarAtendente={mostrarAtendente}
             mostrarAutomatico={mostrarAutomatico}
             automaticoDaOrg={automaticoDaOrg.data}
+            modoSelecao={modoSelecao}
+            marcada={marcadas.has(c.id)}
+            onMarcar={marcar}
           />
         ))}
         {q.hasNextPage && (

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
 import type { Conversation } from "@/lib/types/messaging";
+import { arquivarEmLote, type AlvoDoLote } from "@/lib/inbox/arquivar-em-lote";
 
 interface CloseArgs {
   conversation_id: string;
@@ -53,6 +54,27 @@ export function useArchiveConversation() {
     onSettled: (_data, _error, args) => {
       qc.invalidateQueries({ queryKey: ["conversations"] });
       qc.invalidateQueries({ queryKey: ["conversation", args.conversation_id] });
+    },
+  });
+}
+
+/**
+ * Arquivar VÁRIAS de uma vez (seleção em massa do Inbox). Cada uma passa pelo
+ * mesmo PATCH de `useArchiveConversation`; ver `lib/inbox/arquivar-em-lote.ts`.
+ * Reabre a leitura uma vez só, no fim, e não a cada conversa.
+ */
+export function useArquivarVarias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (alvos: AlvoDoLote[]) =>
+      arquivarEmLote(alvos, (a) =>
+        apiClient.patch<{ data: Conversation }>(`/api/v1/conversations/${a.id}`, {
+          status: "archived",
+          expected_revision: a.service_revision,
+        }),
+      ),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
 }
