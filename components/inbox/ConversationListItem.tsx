@@ -5,7 +5,7 @@ import { useLocaleDeData } from "@/hooks/i18n/useLocaleDeData";
 import type { Locale } from "date-fns";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { useT } from "@/hooks/i18n/useT";
-import { Robot } from "@/lib/ui/icons";
+import { Check, Robot } from "@/lib/ui/icons";
 import { ChannelLogo } from "@/components/inbox/ChannelLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,14 @@ interface Props {
    * afirme nada".
    */
   automaticoDaOrg?: boolean;
+  /**
+   * Modo de seleção em massa (arquivar várias). Ligado, o clique na linha marca
+   * ou desmarca em vez de abrir a conversa — a lista inteira muda de gesto junto,
+   * então nunca há linha que abre enquanto a do lado marca.
+   */
+  modoSelecao?: boolean;
+  marcada?: boolean;
+  onMarcar?: (id: string) => void;
 }
 
 /**
@@ -129,6 +137,9 @@ export function ConversationListItem({
   mostrarAtendente,
   mostrarAutomatico = true,
   automaticoDaOrg,
+  modoSelecao = false,
+  marcada = false,
+  onMarcar,
 }: Props) {
   const localeDaData = useLocaleDeData();
   const t = useT();
@@ -205,15 +216,28 @@ export function ConversationListItem({
     <button
       type="button"
       data-conversation-id={conversation.id}
-      onClick={() => onSelect(conversation.id)}
+      onClick={() => (modoSelecao ? onMarcar?.(conversation.id) : onSelect(conversation.id))}
       className={cn(
         "group relative flex w-full items-start gap-3 border-b border-border/70 px-3 py-2.5 text-left transition-colors hover:bg-surface-elevated",
         "focus-visible:outline-hidden focus-visible:bg-surface-elevated",
-        isSelected && "bg-accent-50 hover:bg-accent-50",
+        isSelected && !modoSelecao && "bg-accent-50 hover:bg-accent-50",
+        modoSelecao && marcada && "bg-accent-50 hover:bg-accent-50",
       )}
-      aria-current={isSelected ? "true" : undefined}
+      aria-current={isSelected && !modoSelecao ? "true" : undefined}
+      aria-pressed={modoSelecao ? marcada : undefined}
     >
-      {isSelected && (
+      {modoSelecao && (
+        <span
+          aria-hidden
+          className={cn(
+            "mt-3 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+            marcada ? "border-accent bg-accent text-accent-foreground" : "border-border bg-background",
+          )}
+        >
+          {marcada ? <Check size={12} weight="bold" /> : null}
+        </span>
+      )}
+      {isSelected && !modoSelecao && (
         <span className="absolute inset-y-0 left-0 w-0.5 bg-accent" aria-hidden />
       )}
       <div className="relative shrink-0">
